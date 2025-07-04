@@ -1,0 +1,44 @@
+{
+    "name": "nickmoline/stytch-laravel",
+    "description": "Stytch integration for Laravel",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Nick Moline",
+            "email": "nick@nickmoline.com"
+        }
+    ],
+    "require": {
+        "nickmoline/stytch-php": "^0.9.1",
+        "illuminate/support": ">=10.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^3.8",
+        "friendsofphp/php-cs-fixer": "^3.76",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpunit/php-code-coverage": "^11.0",
+        "orchestra/testbench": "^10.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "LaravelStytch\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LaravelStytch\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "@php vendor/bin/testbench package:discover --ansi"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
