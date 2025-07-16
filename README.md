@@ -106,19 +106,21 @@ public function down(): void
 
 ## User Model Setup
 
-Add the `HasStytchUser` trait to your User model:
+Implement the Authenticatable contract and add the required traits to your User model:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use LaravelStytch\Traits\HasStytchUser;
+use LaravelStytch\Traits\StytchAuthenticatable;
 
-class User extends Authenticatable
+class User extends Model implements Authenticatable
 {
-    use HasStytchUser;
+    use HasStytchUser, StytchAuthenticatable;
 
     protected $fillable = [
         'name',
@@ -128,7 +130,14 @@ class User extends Authenticatable
 }
 ```
 
-The trait provides modern Laravel 10+ attribute-based query scopes (`stytchUserId` and `stytchEmail`) for easy user lookup.
+### Required Traits
+
+- **`HasStytchUser`**: Provides Stytch-specific methods and query scopes
+- **`StytchAuthenticatable`**: Provides the methods required by the Laravel Authenticatable contract
+
+The `HasStytchUser` trait provides modern Laravel 10+ attribute-based query scopes (`stytchUserId` and `stytchEmail`) for easy user lookup.
+
+The `StytchAuthenticatable` trait satisfies the `Illuminate\Contracts\Auth\Authenticatable` contract requirements, ensuring your User model is fully compatible with Laravel's authentication system.
 
 ## Organization Model Setup (Optional)
 

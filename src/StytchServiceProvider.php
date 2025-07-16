@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\ServiceProvider;
 use LaravelStytch\Facades\Stytch as StytchFacade;
 use LaravelStytch\Guards\StytchGuardFactory;
+use LaravelStytch\Providers\StytchB2CUserServiceProvider;
+use LaravelStytch\Providers\StytchB2BUserServiceProvider;
 use Stytch\Stytch;
 
 class StytchServiceProvider extends ServiceProvider
@@ -15,11 +17,11 @@ class StytchServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/stytch.php', 'stytch');
+        $this->mergeConfigFrom(__DIR__ . '/../config/stytch.php', 'stytch');
 
         $this->app->singleton(Stytch::class, function ($app) {
             $config = $app['config']['stytch'];
-            
+
             $stytchConfig = [
                 'project_id' => $config['project_id'],
                 'secret' => $config['secret'],
@@ -41,15 +43,18 @@ class StytchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/../config/stytch.php' => config_path('stytch.php'),
+            __DIR__ . '/../config/stytch.php' => config_path('stytch.php'),
         ], 'stytch-config');
 
         $this->publishes([
-            __DIR__.'/../database/migrations/2024_01_01_000000_add_stytch_user_id_to_users_table.php' => database_path('migrations/2024_01_01_000000_add_stytch_user_id_to_users_table.php'),
+            __DIR__ . '/../database/migrations/2024_01_01_000000_add_stytch_user_id_to_users_table.php' => database_path('migrations/2024_01_01_000000_add_stytch_user_id_to_users_table.php'),
         ], 'stytch-migrations');
 
         // Register the guards
         $this->registerGuards();
+
+        // Register the user providers
+        $this->registerUserProviders();
     }
 
     /**
@@ -66,6 +71,20 @@ class StytchServiceProvider extends ServiceProvider
             $config['client_type'] = 'b2b';
             $provider = Auth::createUserProvider($config['provider'] ?? null);
             return StytchGuardFactory::create($name, $config, $provider);
+        });
+    }
+
+    /**
+     * Register the Stytch user providers.
+     */
+    protected function registerUserProviders(): void
+    {
+        Auth::provider('stytch-b2c', function ($app, array $config) {
+            return new StytchB2CUserServiceProvider($config['model']);
+        });
+
+        Auth::provider('stytch-b2b', function ($app, array $config) {
+            return new StytchB2BUserServiceProvider($config['model']);
         });
     }
 

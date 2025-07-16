@@ -47,7 +47,7 @@ class StytchGuard implements Guard
         string $name,
         UserProvider $provider,
         Request $request,
-        string $clientType = 'b2c'
+        string $clientType = 'b2c',
     ) {
         $this->name = $name;
         $this->provider = $provider;
@@ -191,7 +191,7 @@ class StytchGuard implements Guard
             // Authenticate with Stytch
             $stytchUser = null;
             $stytchMember = null;
-            
+
             if ($sessionToken) {
                 $response = $this->authenticateWithSession($sessionToken);
                 $stytchUser = $response['user'] ?? null;
@@ -226,7 +226,7 @@ class StytchGuard implements Guard
         } catch (\Exception $e) {
             // Log the error for debugging
             Log::error("Stytch {$this->clientType} authentication failed: " . $e->getMessage());
-            
+
             return null;
         }
     }
@@ -236,7 +236,7 @@ class StytchGuard implements Guard
      */
     protected function hasValidStytchSession(): bool
     {
-        return Session::has('stytch.user_id') && 
+        return Session::has('stytch.user_id') &&
                Session::has('stytch.authenticated_at') &&
                $this->isSessionNotExpired();
     }
@@ -248,7 +248,7 @@ class StytchGuard implements Guard
     {
         $authenticatedAt = Session::get('stytch.authenticated_at');
         $sessionTimeout = config('stytch.session_timeout', 3600); // 1 hour default
-        
+
         return (time() - $authenticatedAt) < $sessionTimeout;
     }
 
@@ -258,13 +258,13 @@ class StytchGuard implements Guard
     protected function getUserFromSession(): ?Authenticatable
     {
         $userId = Session::get('stytch.user_id');
-        
+
         if (!$userId) {
             return null;
         }
 
         $userModelClass = config('stytch.user_model', 'App\Models\User');
-        
+
         if (!class_exists($userModelClass)) {
             return null;
         }
@@ -301,7 +301,7 @@ class StytchGuard implements Guard
         if ($this->clientType === 'b2b' && $stytchMember) {
             $sessionData['member_id'] = $stytchMember['member_id'] ?? null;
             $sessionData['organization_id'] = $stytchMember['organization_id'] ?? null;
-            
+
             if (isset($stytchMember['organization'])) {
                 $sessionData['organization_name'] = $stytchMember['organization']['organization_name'] ?? null;
                 $sessionData['organization_slug'] = $stytchMember['organization']['organization_slug'] ?? null;
@@ -316,7 +316,7 @@ class StytchGuard implements Guard
 
         // Store in Laravel session
         Session::put('stytch', $sessionData);
-        
+
         // Regenerate session ID for security
         Session::regenerate();
     }
@@ -343,9 +343,10 @@ class StytchGuard implements Guard
     protected function authenticateWithSession(string $sessionToken): array
     {
         if ($this->clientType === 'b2b') {
-            return Stytch::b2b()->sessions()->authenticate(['session_token' => $sessionToken]);
+            $response = Stytch::b2b()->sessions->authenticate(['session_token' => $sessionToken]);
+            return $response->toArray();
         } else {
-            return Stytch::b2c()->sessions()->authenticate(['session_token' => $sessionToken]);
+            return Stytch::b2c()->sessions->authenticate(['session_token' => $sessionToken]);
         }
     }
 
@@ -355,9 +356,11 @@ class StytchGuard implements Guard
     protected function authenticateWithJwt(string $jwtToken): array
     {
         if ($this->clientType === 'b2b') {
-            return Stytch::b2b()->sessions()->authenticateJwt(['session_jwt' => $jwtToken]);
+            // B2B doesn't have authenticateJwt method, so we'll return null
+            // This should be handled by the calling code
+            return [];
         } else {
-            return Stytch::b2c()->sessions()->authenticateJwt(['session_jwt' => $jwtToken]);
+            return Stytch::b2c()->sessions->authenticateJwt(['session_jwt' => $jwtToken]);
         }
     }
 
@@ -367,21 +370,21 @@ class StytchGuard implements Guard
     protected function findOrCreateUser(array $stytchUser): ?Authenticatable
     {
         $userModelClass = config('stytch.user_model', 'App\Models\User');
-        
+
         if (!class_exists($userModelClass)) {
             throw new \Exception("User model class {$userModelClass} not found");
         }
 
         // Check if the model uses our trait
         $usesTrait = in_array(HasStytchUser::class, class_uses_recursive($userModelClass));
-        
+
         if (!$usesTrait) {
             throw new \Exception("User model {$userModelClass} must use the HasStytchUser trait");
         }
 
         // Try to find existing user by Stytch user ID
         $user = $userModelClass::stytchUserId($stytchUser['user_id'])->first();
-        
+
         if ($user) {
             // Update user data if needed
             $this->updateUserFromStytch($user, $stytchUser);
@@ -393,7 +396,7 @@ class StytchGuard implements Guard
             $primaryEmail = $stytchUser['emails'][0] ?? null;
             if ($primaryEmail && isset($primaryEmail['email'])) {
                 $user = $userModelClass::stytchEmail($primaryEmail['email'])->first();
-                
+
                 if ($user) {
                     // Update the user with Stytch ID
                     $user->setStytchUserId($stytchUser['user_id']);
@@ -408,7 +411,7 @@ class StytchGuard implements Guard
         $userData = [
             'stytch_user_id' => $stytchUser['user_id'],
         ];
-        
+
         // Add email if available
         if (isset($stytchUser['emails']) && !empty($stytchUser['emails'])) {
             $primaryEmail = $stytchUser['emails'][0] ?? null;
@@ -416,7 +419,7 @@ class StytchGuard implements Guard
                 $userData['email'] = $primaryEmail['email'];
             }
         }
-        
+
         // Add name if available
         if (isset($stytchUser['name'])) {
             if (is_array($stytchUser['name'])) {
@@ -427,7 +430,7 @@ class StytchGuard implements Guard
                 $userData['name'] = $stytchUser['name'];
             }
         }
-        
+
         return $userModelClass::stytchUserId($stytchUser['user_id'])->firstOrCreate($userData);
     }
 
@@ -437,7 +440,7 @@ class StytchGuard implements Guard
     protected function handleOrganization($user, array $stytchMember): void
     {
         $organizationModelClass = config('stytch.organization.model', 'App\Models\Organization');
-        
+
         if (!class_exists($organizationModelClass)) {
             Log::warning("Organization model class {$organizationModelClass} not found, skipping organization handling");
             return;
@@ -445,7 +448,7 @@ class StytchGuard implements Guard
 
         // Check if the model uses our trait
         $usesTrait = in_array(HasStytchOrganization::class, class_uses_recursive($organizationModelClass));
-        
+
         if (!$usesTrait) {
             Log::warning("Organization model {$organizationModelClass} must use the HasStytchOrganization trait");
             return;
@@ -453,18 +456,18 @@ class StytchGuard implements Guard
 
         // Try to find existing organization by Stytch organization ID
         $organization = $organizationModelClass::stytchOrganizationId($stytchMember['organization_id'])->first();
-        
+
         if (!$organization) {
             // Create new organization
             $orgData = [
                 'stytch_organization_id' => $stytchMember['organization_id'],
             ];
-            
+
             // Add organization name if available
             if (isset($stytchMember['organization']['organization_name'])) {
                 $orgData['name'] = $stytchMember['organization']['organization_name'];
             }
-            
+
             $organization = $organizationModelClass::stytchOrganizationId($stytchMember['organization_id'])->firstOrCreate($orgData);
         }
 
@@ -501,10 +504,10 @@ class StytchGuard implements Guard
             } else {
                 $newName = $stytchUser['name'];
             }
-            
+
             if ($newName && $user->name !== $newName) {
                 $user->name = $newName;
             }
         }
     }
-} 
+}
