@@ -3,17 +3,18 @@
 namespace LaravelStytch\Guards;
 
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 use LaravelStytch\Facades\Stytch;
 use LaravelStytch\Traits\HasStytchUser;
 use LaravelStytch\Traits\HasStytchOrganization;
 
-class StytchGuard implements Guard
+class StytchGuard implements StatefulGuard
 {
     /**
      * The user provider implementation.
@@ -90,6 +91,164 @@ class StytchGuard implements Guard
     }
 
     /**
+     * Attempt to authenticate a user using the given credentials.
+     */
+    public function attempt(array $credentials = [], $remember = false): bool
+    {
+        $user = $this->provider->retrieveByCredentials($credentials);
+
+        if ($this->hasValidCredentials($user, $credentials)) {
+            $this->login($user, $remember);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Log a user into the application without sessions or cookies.
+     */
+    public function once(array $credentials = []): bool
+    {
+        $user = $this->provider->retrieveByCredentials($credentials);
+
+        if ($this->hasValidCredentials($user, $credentials)) {
+            $this->setUser($user);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Log a user into the application.
+     */
+    public function login(Authenticatable $user, $remember = false): void
+    {
+        $this->setUser($user);
+
+        if ($remember) {
+            $this->ensureRememberTokenIsSet($user);
+            $this->queueRememberCookie($user);
+        }
+
+        // Create Stytch session data
+        $this->createStytchSessionFromUser($user);
+    }
+
+    /**
+     * Log the given user ID into the application.
+     */
+    public function loginUsingId($id, $remember = false): Authenticatable|false
+    {
+        $user = $this->provider->retrieveById($id);
+
+        if ($user) {
+            $this->login($user, $remember);
+            return $user;
+        }
+
+        return false;
+    }
+
+    /**
+     * Log the given user ID into the application without sessions or cookies.
+     */
+    public function onceUsingId($id): Authenticatable|false
+    {
+        $user = $this->provider->retrieveById($id);
+
+        if ($user) {
+            $this->setUser($user);
+            return $user;
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the user was authenticated via "remember me" cookie.
+     */
+    public function viaRemember(): bool
+    {
+        // For Stytch authentication, we don't use traditional remember me
+        // but we can check if the user was authenticated via session
+        return Session::has('stytch.user_id');
+    }
+
+    /**
+     * Log the user out of the application.
+     */
+    public function logout(): void
+    {
+        $user = $this->user();
+
+        if ($user) {
+            $this->clearStytchSession();
+            $this->setUserToNull();
+        }
+    }
+
+    /**
+     * Check if the user has valid credentials.
+     */
+    protected function hasValidCredentials($user, array $credentials): bool
+    {
+        return $user && $this->provider->validateCredentials($user, $credentials);
+    }
+
+    /**
+     * Ensure the remember token is set on the user.
+     */
+    protected function ensureRememberTokenIsSet(Authenticatable $user): void
+    {
+        if (empty($user->getRememberToken())) {
+            $this->cycleRememberToken($user);
+        }
+    }
+
+    /**
+     * Queue the remember cookie for the user.
+     */
+    protected function queueRememberCookie(Authenticatable $user): void
+    {
+        // For Stytch authentication, we handle remember me through Stytch sessions
+        // This method is kept for compatibility but doesn't set traditional cookies
+    }
+
+    /**
+     * Create Stytch session data from a user.
+     */
+    protected function createStytchSessionFromUser(Authenticatable $user): void
+    {
+        $sessionData = [
+            'user_id' => $user->getAuthIdentifier(),
+            'authenticated_at' => time(),
+            'client_type' => $this->clientType,
+        ];
+
+        // Add basic user information
+        if (isset($user->name)) {
+            $sessionData['name'] = $user->name;
+        }
+
+        // Store in Laravel session
+        Session::put('stytch', $sessionData);
+        
+        // Regenerate session ID for security
+        Session::regenerate();
+    }
+
+    /**
+     * Cycle the remember token for the user.
+     */
+    protected function cycleRememberToken(Authenticatable $user): void
+    {
+        $token = Str::random(60);
+        $this->provider->updateRememberToken($user, $token);
+    }
+
+    /**
      * Determine if the current user is authenticated.
      */
     public function check(): bool
@@ -119,6 +278,14 @@ class StytchGuard implements Guard
     public function setUser(Authenticatable $user): void
     {
         $this->user = $user;
+    }
+
+    /**
+     * Set the current user to null.
+     */
+    public function setUserToNull(): void
+    {
+        $this->user = null;
     }
 
     /**
