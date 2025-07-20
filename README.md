@@ -8,6 +8,7 @@ A Laravel package for integrating Stytch authentication into your Laravel applic
 - **B2B Authentication**: Complete B2B authentication with organization support
 - **Custom User Providers**: `StytchB2CUserServiceProvider` and `StytchB2BUserServiceProvider` for password authentication
 - **Custom Guards**: `StytchGuard` implementing Laravel's `StatefulGuard` interface
+- **Middleware**: `StytchAuthenticate` middleware for automatic authentication
 - **Traits**: `HasStytchUser`, `HasStytchOrganization`, and `StytchAuthenticatable` traits
 - **Session Management**: Automatic session handling with Stytch tokens
 - **Organization Support**: Built-in organization management for B2B applications
@@ -100,7 +101,7 @@ Update your `config/auth.php` to use the Stytch guards and providers:
 
 ### User Models
 
-Your user model should implement the `Authenticatable` contract and use the provided traits:
+Your user model should implement the `Authenticatable` contract, the `StytchUserContract`, and use the provided traits:
 
 ```php
 <?php
@@ -108,10 +109,11 @@ Your user model should implement the `Authenticatable` contract and use the prov
 namespace App\Models;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use LaravelStytch\Contracts\StytchUserContract;
 use LaravelStytch\Traits\HasStytchUser;
 use LaravelStytch\Traits\StytchAuthenticatable;
 
-class User implements Authenticatable
+class User implements Authenticatable, StytchUserContract
 {
     use HasStytchUser, StytchAuthenticatable;
 
@@ -120,8 +122,28 @@ class User implements Authenticatable
         'email',
         'stytch_user_id',
     ];
+
+    /**
+     * Update the user's name from Stytch data.
+     * Override this method if your name field has a different name.
+     */
+    public function updateStytchName(string $name): void
+    {
+        $this->name = $name;
+    }
+
+    /**
+     * Get the user's current name.
+     * Override this method if your name field has a different name.
+     */
+    public function getStytchName(): ?string
+    {
+        return $this->name;
+    }
 }
 ```
+
+The `StytchUserContract` provides methods for updating user data from Stytch responses without making assumptions about your specific field names. Email handling is already provided by the `HasStytchUser` trait, while name handling can be customized by overriding the contract methods.
 
 ### Authentication Methods
 
@@ -186,6 +208,43 @@ class Organization extends Model
     ];
 }
 ```
+
+### Middleware Authentication
+
+The package provides a `StytchAuthenticate` middleware that automatically handles authentication via Stytch cookies. This middleware:
+
+1. Checks if the user is already logged in via Laravel sessions
+2. If not logged in, checks for Stytch cookies (session_token or session_jwt)
+3. Authenticates with Stytch using the appropriate method (B2B or B2C)
+4. Finds or creates the user in your database
+5. Logs the user in using Laravel's `Auth::login()` method
+
+#### Using the Middleware
+
+Apply the middleware to routes that require authentication:
+
+```php
+// Apply to individual routes
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware('stytch.auth');
+
+// Apply to route groups
+Route::middleware(['stytch.auth'])->group(function () {
+    Route::get('/profile', 'ProfileController@show');
+    Route::get('/settings', 'SettingsController@show');
+});
+
+// Apply to controllers
+Route::controller(ProfileController::class)
+    ->middleware('stytch.auth')
+    ->group(function () {
+        Route::get('/profile', 'show');
+        Route::put('/profile', 'update');
+    });
+```
+
+The middleware is registered as `stytch.auth` and can be used alongside other Laravel middleware.
 
 ### Session Management
 

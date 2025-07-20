@@ -4,6 +4,7 @@ namespace LaravelStytch\Models;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use LaravelStytch\Contracts\StytchUserContract;
 use LaravelStytch\Traits\HasStytchUser;
 use LaravelStytch\Traits\StytchAuthenticatable;
 
@@ -14,7 +15,7 @@ use LaravelStytch\Traits\StytchAuthenticatable;
  * in Laravel by implementing the Authenticatable contract and using traits
  * to satisfy the contract requirements.
  */
-class StytchUser extends Model implements Authenticatable
+class StytchUser extends Model implements Authenticatable, StytchUserContract
 {
     use HasStytchUser, StytchAuthenticatable;
 

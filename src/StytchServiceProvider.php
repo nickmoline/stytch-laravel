@@ -55,6 +55,9 @@ class StytchServiceProvider extends ServiceProvider
 
         // Register the user providers
         $this->registerUserProviders();
+
+        // Register the middleware
+        $this->registerMiddleware();
     }
 
     /**
@@ -86,6 +89,14 @@ class StytchServiceProvider extends ServiceProvider
         Auth::provider('stytch-b2b', function ($app, array $config) {
             return new StytchB2BUserServiceProvider($config['model']);
         });
+    }
+
+    /**
+     * Register the Stytch middleware.
+     */
+    protected function registerMiddleware(): void
+    {
+        $this->app['router']->aliasMiddleware('stytch.auth', \LaravelStytch\Middleware\StytchAuthenticate::class);
     }
 
     /**

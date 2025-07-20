@@ -4,6 +4,7 @@ namespace LaravelStytch\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Attributes\Scope;
+use LaravelStytch\Contracts\StytchUserContract;
 
 trait HasStytchUser
 {
@@ -57,6 +58,29 @@ trait HasStytchUser
     {
         $column = $this->getStytchEmailColumn();
         $this->{$column} = $email;
+    }
+
+    /**
+     * Update the user's name from Stytch data.
+     */
+    public function updateStytchName(string $name): void
+    {
+        // Default implementation - override in your model if needed
+        if (property_exists($this, 'name')) {
+            $this->name = $name;
+        }
+    }
+
+    /**
+     * Get the user's current name.
+     */
+    public function getStytchName(): ?string
+    {
+        // Default implementation - override in your model if needed
+        if (property_exists($this, 'name')) {
+            return $this->name;
+        }
+        return null;
     }
 
     /**

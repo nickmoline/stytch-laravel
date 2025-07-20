@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use LaravelStytch\Contracts\StytchUserContract;
 use LaravelStytch\Traits\HasStytchUser;
 use LaravelStytch\Traits\StytchAuthenticatable;
 
@@ -17,7 +18,7 @@ use LaravelStytch\Traits\StytchAuthenticatable;
  * with Stytch's authentication system by implementing the Authenticatable
  * contract and using traits to satisfy the contract requirements.
  */
-class User extends Model implements Authenticatable
+class User extends Model implements Authenticatable, StytchUserContract
 {
     use HasApiTokens, HasFactory, Notifiable, HasStytchUser, StytchAuthenticatable;
 
